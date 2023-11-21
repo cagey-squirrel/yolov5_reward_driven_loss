@@ -41,7 +41,7 @@ from utils.callbacks import Callbacks
 from utils.dataloaders import create_dataloader
 from utils.general import (LOGGER, TQDM_BAR_FORMAT, Profile, check_dataset, check_img_size, check_requirements,
                            check_yaml, coco80_to_coco91_class, colorstr, increment_path, non_max_suppression,
-                           print_args, scale_boxes, xywh2xyxy, xyxy2xywh)
+                           print_args, scale_boxes, xywh2xyxy, xyxy2xywh, class_wise_non_max_suppression)
 from utils.metrics import ConfusionMatrix, ap_per_class, box_iou
 from utils.plots import output_to_target, plot_images, plot_val_study
 from utils.torch_utils import select_device, smart_inference_mode
@@ -125,6 +125,7 @@ def run(
         plots=True,
         callbacks=Callbacks(),
         compute_loss=None,
+        class_wise_nms=False
 ):
     # Initialize/load model and set device
     training = model is not None
@@ -217,6 +218,10 @@ def run(
         targets[:, 2:] *= torch.tensor((width, height, width, height), device=device)  # to pixels
         lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
         with dt[2]:
+            
+            if class_wise_nms:
+                preds = class_wise_non_max_suppression(preds)
+
             preds = non_max_suppression(preds,
                                         conf_thres,
                                         iou_thres,

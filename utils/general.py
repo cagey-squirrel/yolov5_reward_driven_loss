@@ -863,6 +863,37 @@ def clip_segments(segments, shape):
         segments[:, 1] = segments[:, 1].clip(0, shape[0])  # y
 
 
+def class_wise_non_max_suppression(predictions):
+    '''
+    Leaves only one detection per class on a single image
+    The detection with highest confidence * class_probability is left
+    '''
+
+
+    confs = predictions[..., 4]
+    classes_probs = predictions[..., 5:]
+
+    classes_probs *= confs[..., None]  # Multiplying class probability with objectness
+    maxes_mask = torch.zeros_like(classes_probs)
+
+    max_indices = torch.argmax(classes_probs, dim=1)
+    image_indices = torch.arange(maxes_mask.shape[0]).repeat_interleave(max_indices.shape[-1])  # For example for 2 images and 3 classes this makes: [0, 0, 0, 1, 1, 1]
+    cell_indices = max_indices.flatten()  # We take only max cells 
+    class_indices = torch.arange(max_indices.shape[-1]).repeat(maxes_mask.shape[0])
+    
+    maxes_mask[image_indices, cell_indices, class_indices] = 1
+    predictions[..., 5:] *= maxes_mask  # Zeroes out all non max predictions
+    
+    # Sanity check
+    #for image_index in range(num_images):
+    #    img_preds = prediction[image_index]
+    #    non_zero_preds = (img_preds[..., 5:] > 0).sum()
+    #    print(f'non zero preds for img {image_index} is {non_zero_preds}')
+    #    for class_index in range(num_classes):
+
+    return predictions
+
+
 def non_max_suppression(
         prediction,
         conf_thres=0.25,

@@ -260,7 +260,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     scheduler.last_epoch = start_epoch - 1  # do not move
     scaler = torch.cuda.amp.GradScaler(enabled=amp)
     stopper, stop = EarlyStopping(patience=opt.patience), False
-    compute_loss = ComputeLoss(model)  # init loss class
+    compute_loss = ComputeLoss(model, loss_function=opt.loss_function, confidence_treshold=opt.confidence_treshold, iou_treshold=opt.iou_treshold)  # init loss class
     callbacks.run('on_train_start')
     LOGGER.info(f'Image sizes {imgsz} train, {imgsz} val\n'
                 f'Using {train_loader.num_workers * WORLD_SIZE} dataloader workers\n'
@@ -366,7 +366,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                                                 save_dir=save_dir,
                                                 plots=False,
                                                 callbacks=callbacks,
-                                                compute_loss=compute_loss)
+                                                compute_loss=compute_loss,
+                                                class_wise_nms=opt.class_wise_nms)
 
             # Update best mAP
             fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
@@ -481,6 +482,12 @@ def parse_opt(known=False):
     parser.add_argument('--upload_dataset', nargs='?', const=True, default=False, help='Upload data, "val" option')
     parser.add_argument('--bbox_interval', type=int, default=-1, help='Set bounding-box image logging interval')
     parser.add_argument('--artifact_alias', type=str, default='latest', help='Version of dataset artifact to use')
+
+    # Arguments added for screen time estimation task
+    parser.add_argument('--iou_treshold', type=float, default=0.0, help='IoU treshold for deciding if prediction is good')
+    parser.add_argument('--confidence_treshold', type=float, default=0.0, help='Confidence treshold for deciding if prediction is good')
+    parser.add_argument('--loss_function', type=str, choices=['ordinary', 'ignore', 'motivate'], default='motivate', help='Which loss function to use')
+    parser.add_argument('--class_wise_nms', type=bool, default=True, help='To use class wise non max surpression or not')
 
     return parser.parse_known_args()[0] if known else parser.parse_args()
 
